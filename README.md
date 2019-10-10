@@ -1,6 +1,10 @@
 # MarkdownFormatter
 Simple markdown formatter for Rich control on U++
 
+# Dependencies
+Requires Ultimate++: https://www.ultimatepp.org/
+Requires PEGTL: https://github.com/taocpp/PEGTL
+
 # Usage:
 ```C++
 #include <CtrlLib/CtrlLib.h>
