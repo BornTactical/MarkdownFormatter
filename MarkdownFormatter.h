@@ -232,15 +232,20 @@ namespace Upp {
             }
         }
         
-        RichText Format(String str, RichPara::CharFormat& charFmt) {
+        RichText FormatAppend(RichPara& para, const String& str, RichPara::CharFormat& charFmt) {
             RichText richText;
-            RichPara para;
+            
             pegtl::string_input in(str.ToStd(), "content");
             auto root = pegtl::parse_tree::parse<MarkdownParser::Grammar, MarkdownParser::Selector>(in);
             Parse(*root, richText, para, charFmt);
             richText.Cat(para);
             
             return richText;
+        }
+        
+        RichText Format(const String str, RichPara::CharFormat& charFmt) {
+            RichPara para;
+            return FormatAppend(para, str, charFmt);
         }
     };
     
@@ -296,7 +301,7 @@ namespace Upp {
     
     class CodeDefault {
     protected:
-        void FormatCode(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {        
+        void FormatCode(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {
             auto fmt = charFmt;
                     
             (Font&)charFmt = Monospace(13);
