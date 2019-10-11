@@ -144,12 +144,226 @@ namespace MarkdownParser {
 }
 
 namespace Upp {
-    class MarkdownFormatter {
-        void Parse(const pegtl::parse_tree::node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt);
+    using Node = const pegtl::parse_tree::node;
+
+    template
+        <typename StrPolicy,
+         typename SpecialCharPolicy,
+         typename ItalicsPolicy,
+         typename MentionPolicy,
+         typename BoldPolicy,
+         typename StrikePolicy,
+         typename CodePolicy,
+         typename EolPolicy,
+         typename UrlPolicy>
+    class BasicMarkdownFormatter :
+        private StrPolicy,     private SpecialCharPolicy, private ItalicsPolicy,
+        private MentionPolicy, private BoldPolicy,        private StrikePolicy,
+        private CodePolicy,    private EolPolicy,         private UrlPolicy {
+        using StrPolicy::FormatStr;
+        using SpecialCharPolicy::FormatSpecialChar;
+        using ItalicsPolicy::FormatItalics;
+        using MentionPolicy::FormatMention;
+        using BoldPolicy::FormatBold;
+        using StrikePolicy::FormatStrike;
+        using CodePolicy::FormatCode;
+        using EolPolicy::FormatEol;
+        using UrlPolicy::FormatUrl;
         
     public:
-        RichText FormatMarkdown(String str, RichPara::CharFormat& charFmt);
+        void Parse(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {
+            auto ParseChildren = ([&] {
+                if (!node.children.empty()) {
+                    for (auto& up : node.children) {
+                        Parse(*up, richText, para, charFmt);
+                    }
+                }
+            });
+            
+            auto SimulateEndline = ([&] {
+                if(!para.IsEmpty()) {
+                    richText.Cat(para);
+                    para = RichPara();
+                }
+            });
+            
+            if(node.is_root()) {
+                ParseChildren();
+            }
+            
+            if(node.has_content()) {
+                if(node.is<MarkdownParser::Str>()) {
+                    FormatStr(node, richText, para, charFmt);
+                }
+                else if(node.is<MarkdownParser::SpecialChar>()) {
+                    FormatSpecialChar(node, richText, para, charFmt);
+                }
+                else if(node.is<MarkdownParser::Italics>()) {
+                    FormatItalics(node, richText, para, charFmt);
+                    charFmt.Italic(true);
+                    ParseChildren();
+                    charFmt.Italic(false);
+                }
+                else if(node.is<MarkdownParser::Mention>()) {
+                    FormatMention(node, richText, para, charFmt);
+                }
+                else if(node.is<MarkdownParser::Bold>()) {
+                    FormatBold(node, richText, para, charFmt);
+                    charFmt.Bold(true);
+                    ParseChildren();
+                    charFmt.Bold(false);
+                }
+                else if(node.is<MarkdownParser::Strike>()) {
+                    FormatStrike(node, richText, para, charFmt);
+                    charFmt.Strikeout(true);
+                    ParseChildren();
+                    charFmt.Strikeout(false);
+                }
+                else if(node.is<MarkdownParser::Code>()) {
+                    SimulateEndline();
+                    FormatCode(node, richText, para, charFmt);
+                }
+                else if(node.is<MarkdownParser::EndOfLine>()) {
+                    SimulateEndline();
+                }
+                else if(node.is<MarkdownParser::Url>()) {
+                    FormatUrl(node, richText, para, charFmt);
+                }
+            }
+        }
+        
+        RichText Format(String str, RichPara::CharFormat& charFmt) {
+            RichText richText;
+            RichPara para;
+            pegtl::string_input in(str.ToStd(), "content");
+            auto root = pegtl::parse_tree::parse<MarkdownParser::Grammar, MarkdownParser::Selector>(in);
+            Parse(*root, richText, para, charFmt);
+            richText.Cat(para);
+            
+            return richText;
+        }
     };
-}
+    
+    class StrDefault {
+    protected:
+        void FormatStr(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {
+            std::string str = node.string();
+            String s(str);
+            para.Cat(s, charFmt);
+        }
+    };
+    
+    class SpecialCharDefault {
+    protected:
+        void FormatSpecialChar(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {
+            std::string str = node.string();
+            String s(str);
+            para.Cat(s, charFmt);
+        }
+    };
+    
+    class ItalicsDefault {
+    protected:
+        void FormatItalics(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {
+            // nothing here
+        }
+    };
+    
+    class MentionDefault {
+    protected:
+        void FormatMention(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {
+            auto fmt = charFmt;
+            fmt.ink  = Color(93, 126, 218);
+            fmt.Bold();
+            String s(node.string());
+            para.Cat(s, fmt);
+        }
+    };
+    
+    class BoldDefault {
+    protected:
+        void FormatBold(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {
+            // nothing here
+        }
+    };
+    
+    class StrikeDefault {
+    protected:
+        void FormatStrike(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {
+            // nothing here
+        }
+    };
+    
+    class CodeDefault {
+    protected:
+        void FormatCode(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {        
+            auto fmt = charFmt;
+                    
+            (Font&)charFmt = Monospace(13);
+            RichPara code;
+            RichTable table;
+            table.AddColumn(1);
+            
+            auto tableFormat = table.GetFormat();
+                 tableFormat.gridcolor = Black();
+                 tableFormat.frame = 0;
+                 tableFormat.framecolor = Color(0,0,0);
+                 tableFormat.grid = 0;
+                 tableFormat.lm = 60;
+                 tableFormat.rm = 60;
+                 table.SetFormat(tableFormat);
+            
+            RichText cellText;
+            
+            for (auto& up : node.children) {
+                if(up->is<MarkdownParser::CodeEol>()) {
+                    RichPara::Format format = code.format;
+                    code = RichPara();
+                    code.format = format;
+                }
+                else if(up->is<MarkdownParser::Str>()) {
+                    std::string str = up->string();
+                    String s(str);
+                    code.Cat(s, charFmt);
+                    cellText.Cat(code);
+                }
+                else if(up->is<MarkdownParser::EndOfCode>()) {
+                    table.SetPick(0, 0, pick(cellText));
+                    RichCell::Format cellFmt = table.GetFormat(0, 0);
+                    cellFmt.bordercolor = Color(40, 40, 40);
+                    cellFmt.border = Rect{2,2,2,2};
+                    cellFmt.margin = Rect{10,10,10,10};
+                    table.SetFormat(0, 0, cellFmt);
+                    
+                    richText.CatPick(pick(table));
+                }
+            }
+            
+            charFmt = fmt;
+        }
+    };
 
+    class EolDefault {
+    protected:
+        void FormatEol(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {
+            // nothing here
+        }
+    };
+    
+    class UrlDefault {
+    protected:
+        void FormatUrl(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {
+            auto fmt = charFmt;
+                 fmt.Underline(true);
+                 fmt.ink = Blue();
+                 fmt.link = node.string();
+                 
+            para.Cat(fmt.link, fmt);
+        }
+    };
+    
+    typedef BasicMarkdownFormatter< StrDefault, SpecialCharDefault, ItalicsDefault,
+        MentionDefault, BoldDefault, StrikeDefault, CodeDefault, EolDefault, UrlDefault>
+        MarkdownFormatter;
+}
 #endif
