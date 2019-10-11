@@ -25,7 +25,7 @@ GUI_APP_MAIN {
     fmt.ink   = Black();
     (Font&)fmt = Arial(15);
     
-    auto txt = mdf.FormatMarkdown(
+    auto txt = mdf.Format(
         "Normal\n"
         "*Italics*\n"
         "**Bold**\n"
