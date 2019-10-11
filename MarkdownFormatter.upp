@@ -1,5 +1,6 @@
 uses
-	PEGTL;
+	PEGTL,
+	RichText;
 
 options
 	-std=c++17;
@@ -7,6 +8,5 @@ options
 options(MSC) /std:c++17;
 
 file
-	MarkdownFormatter.cpp,
 	MarkdownFormatter.h options(BUILDER_OPTION) PCH;
 
