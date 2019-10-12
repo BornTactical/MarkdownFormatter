@@ -180,13 +180,6 @@ namespace Upp {
                 }
             });
             
-            auto SimulateEndline = ([&] {
-                if(!para.IsEmpty()) {
-                    richText.Cat(para);
-                    para = RichPara();
-                }
-            });
-            
             if(node.is_root()) {
                 ParseChildren();
             }
@@ -220,11 +213,11 @@ namespace Upp {
                     charFmt.Strikeout(false);
                 }
                 else if(node.is<MarkdownParser::Code>()) {
-                    SimulateEndline();
+                    FormatEol(node, richText, para, charFmt);
                     FormatCode(node, richText, para, charFmt);
                 }
                 else if(node.is<MarkdownParser::EndOfLine>()) {
-                    SimulateEndline();
+                    FormatEol(node, richText, para, charFmt);
                 }
                 else if(node.is<MarkdownParser::Url>()) {
                     FormatUrl(node, richText, para, charFmt);
@@ -351,7 +344,10 @@ namespace Upp {
     class EolDefault {
     protected:
         void FormatEol(Node& node, RichText& richText, RichPara& para, RichPara::CharFormat& charFmt) {
-            // nothing here
+            if(!para.IsEmpty()) {
+                richText.Cat(para);
+                para = RichPara();
+            }
         }
     };
     
